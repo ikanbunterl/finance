@@ -1,24 +1,54 @@
 /**
- * FinanceQuest - Modern Finance Manager
- * Enhanced JavaScript with Charts, LocalStorage, and Gamification
+ * FinanceQuest - Multi-Platform Finance Manager
+ * Firebase Integration with Real-time Sync
  */
+
+// ========================================
+// FIREBASE CONFIGURATION
+// ========================================
+const firebaseConfig = {
+  apiKey: "AIzaSyBQIrs1W4C0E8dC-T2aLkC8_1e5h3z7k9Q",
+  authDomain: "financequest-app.firebaseapp.com",
+  projectId: "financequest-app",
+  storageBucket: "financequest-app.appspot.com",
+  messagingSenderId: "123456789012",
+  appId: "1:123456789012:web:abcdef1234567890"
+};
+
+// Initialize Firebase
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+// Enable offline persistence
+db.enablePersistence({ synchronizeTabs: true })
+  .catch((err) => {
+    if (err.code === 'failed-precondition') {
+      console.log('Persistence failed: Multiple tabs open');
+    } else if (err.code === 'unimplemented') {
+      console.log('Persistence not supported by browser');
+    }
+  });
 
 // ========================================
 // STATE MANAGEMENT
 // ========================================
 const AppState = {
   user: {
-    name: 'Irkham',
+    uid: null,
+    name: '',
+    email: '',
     level: 1,
     xp: 0,
     maxXp: 100,
     streak: 0,
-    lastLogin: null
+    lastLogin: null,
+    createdAt: null
   },
   transactions: [],
   goals: [],
   achievements: [
-    { id: 1, name: 'Pemula Keuangan', description: 'Buat transaksi pertamamu', icon: '🌱', earned: false, condition: () => AppState.transactions.length >= 1 },
+    { id: 1, name: 'Pemula Keuangan', description: 'Buat transaksi pertamamu', icon: '🌱', earned: false },
     { id: 2, name: 'Pencatat Rajin', description: 'Catat 10 transaksi', icon: '📝', earned: false, condition: () => AppState.transactions.length >= 10 },
     { id: 3, name: 'Master Keuangan', description: 'Catat 50 transaksi', icon: '👑', earned: false, condition: () => AppState.transactions.length >= 50 },
     { id: 4, name: 'Penabung Handal', description: 'Capai tabungan 1 juta', icon: '💰', earned: false, condition: () => calculateBalance() >= 1000000 },
@@ -31,7 +61,9 @@ const AppState = {
     main: null,
     category: null,
     trend: null
-  }
+  },
+  isOnline: navigator.onLine,
+  isSyncing: false
 };
 
 // ========================================
@@ -48,11 +80,6 @@ const formatCurrency = (amount) => {
 
 const formatDate = (dateString) => {
   const options = { year: 'numeric', month: 'short', day: 'numeric' };
-  return new Date(dateString).toLocaleDateString('id-ID', options);
-};
-
-const formatDateFull = (dateString) => {
-  const options = { year: 'numeric', month: 'long', day: 'numeric' };
   return new Date(dateString).toLocaleDateString('id-ID', options);
 };
 
@@ -123,36 +150,6 @@ const getCategoryData = () => {
 };
 
 // ========================================
-// LOCAL STORAGE
-// ========================================
-const saveData = () => {
-  const data = {
-    user: AppState.user,
-    transactions: AppState.transactions,
-    goals: AppState.goals,
-    achievements: AppState.achievements
-  };
-  localStorage.setItem('financeQuestData', JSON.stringify(data));
-};
-
-const loadData = () => {
-  const saved = localStorage.getItem('financeQuestData');
-  if (saved) {
-    try {
-      const data = JSON.parse(saved);
-      AppState.user = { ...AppState.user, ...data.user };
-      AppState.transactions = data.transactions || [];
-      AppState.goals = data.goals || [];
-      if (data.achievements) {
-        AppState.achievements = data.achievements;
-      }
-    } catch (e) {
-      console.error('Error loading data:', e);
-    }
-  }
-};
-
-// ========================================
 // NOTIFICATION SYSTEM
 // ========================================
 const showNotification = (message, type = 'success', title = null) => {
@@ -199,12 +196,184 @@ const showNotification = (message, type = 'success', title = null) => {
 };
 
 // ========================================
+// SYNC STATUS
+// ========================================
+const updateSyncStatus = (status) => {
+  const syncStatus = document.getElementById('syncStatus');
+  if (!syncStatus) return;
+  
+  if (status === 'syncing') {
+    syncStatus.innerHTML = '<i class="fas fa-sync"></i><span>Menyinkron...</span>';
+    syncStatus.className = 'sync-status syncing';
+  } else if (status === 'synced') {
+    syncStatus.innerHTML = '<i class="fas fa-check-circle"></i><span>Tersinkron</span>';
+    syncStatus.className = 'sync-status';
+  } else if (status === 'error') {
+    syncStatus.innerHTML = '<i class="fas fa-exclamation-circle"></i><span>Gagal sinkron</span>';
+    syncStatus.className = 'sync-status error';
+  } else if (status === 'offline') {
+    syncStatus.innerHTML = '<i class="fas fa-wifi-slash"></i><span>Offline</span>';
+    syncStatus.className = 'sync-status error';
+  }
+};
+
+// ========================================
+// FIREBASE DATA OPERATIONS
+// ========================================
+const saveUserData = async () => {
+  if (!AppState.user.uid) return;
+  
+  updateSyncStatus('syncing');
+  
+  try {
+    const userRef = db.collection('users').doc(AppState.user.uid);
+    await userRef.set({
+      name: AppState.user.name,
+      email: AppState.user.email,
+      level: AppState.user.level,
+      xp: AppState.user.xp,
+      maxXp: AppState.user.maxXp,
+      streak: AppState.user.streak,
+      lastLogin: AppState.user.lastLogin,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+    
+    updateSyncStatus('synced');
+  } catch (error) {
+    console.error('Error saving user data:', error);
+    updateSyncStatus('error');
+  }
+};
+
+const loadUserData = async (uid) => {
+  try {
+    const userDoc = await db.collection('users').doc(uid).get();
+    
+    if (userDoc.exists) {
+      const data = userDoc.data();
+      AppState.user = {
+        ...AppState.user,
+        ...data,
+        uid: uid
+      };
+    }
+  } catch (error) {
+    console.error('Error loading user data:', error);
+  }
+};
+
+const saveTransaction = async (transaction) => {
+  if (!AppState.user.uid) return;
+  
+  try {
+    await db.collection('users').doc(AppState.user.uid)
+      .collection('transactions')
+      .doc(transaction.id)
+      .set({
+        ...transaction,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+  } catch (error) {
+    console.error('Error saving transaction:', error);
+  }
+};
+
+const deleteTransactionFromDB = async (transactionId) => {
+  if (!AppState.user.uid) return;
+  
+  try {
+    await db.collection('users').doc(AppState.user.uid)
+      .collection('transactions')
+      .doc(transactionId)
+      .delete();
+  } catch (error) {
+    console.error('Error deleting transaction:', error);
+  }
+};
+
+const saveGoal = async (goal) => {
+  if (!AppState.user.uid) return;
+  
+  try {
+    await db.collection('users').doc(AppState.user.uid)
+      .collection('goals')
+      .doc(goal.id)
+      .set({
+        ...goal,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+  } catch (error) {
+    console.error('Error saving goal:', error);
+  }
+};
+
+const deleteGoalFromDB = async (goalId) => {
+  if (!AppState.user.uid) return;
+  
+  try {
+    await db.collection('users').doc(AppState.user.uid)
+      .collection('goals')
+      .doc(goalId)
+      .delete();
+  } catch (error) {
+    console.error('Error deleting goal:', error);
+  }
+};
+
+const setupRealtimeListeners = () => {
+  if (!AppState.user.uid) return;
+  
+  // Listen to transactions
+  db.collection('users').doc(AppState.user.uid)
+    .collection('transactions')
+    .orderBy('date', 'desc')
+    .onSnapshot((snapshot) => {
+      AppState.transactions = [];
+      snapshot.forEach((doc) => {
+        AppState.transactions.push({ id: doc.id, ...doc.data() });
+      });
+      updateDashboard();
+      updateTransactionsTable();
+      checkAchievements();
+    }, (error) => {
+      console.error('Error listening to transactions:', error);
+    });
+  
+  // Listen to goals
+  db.collection('users').doc(AppState.user.uid)
+    .collection('goals')
+    .onSnapshot((snapshot) => {
+      AppState.goals = [];
+      snapshot.forEach((doc) => {
+        AppState.goals.push({ id: doc.id, ...doc.data() });
+      });
+      updateGoalsUI();
+    }, (error) => {
+      console.error('Error listening to goals:', error);
+    });
+  
+  // Listen to user data
+  db.collection('users').doc(AppState.user.uid)
+    .onSnapshot((doc) => {
+      if (doc.exists) {
+        const data = doc.data();
+        AppState.user = {
+          ...AppState.user,
+          ...data
+        };
+        updateXpDisplay();
+      }
+    }, (error) => {
+      console.error('Error listening to user data:', error);
+    });
+};
+
+// ========================================
 // XP & LEVEL SYSTEM
 // ========================================
-const addXp = (amount) => {
+const addXp = async (amount) => {
   AppState.user.xp += amount;
   
-  // Check level up
   while (AppState.user.xp >= AppState.user.maxXp) {
     AppState.user.xp -= AppState.user.maxXp;
     AppState.user.level++;
@@ -213,7 +382,7 @@ const addXp = (amount) => {
   }
   
   updateXpDisplay();
-  saveData();
+  await saveUserData();
 };
 
 const showLevelUpModal = () => {
@@ -221,11 +390,10 @@ const showLevelUpModal = () => {
   document.getElementById('newLevel').textContent = AppState.user.level;
   modal.classList.add('active');
   
-  // Add bonus XP
   setTimeout(() => {
     AppState.user.xp += 50;
     updateXpDisplay();
-    saveData();
+    saveUserData();
   }, 500);
 };
 
@@ -244,7 +412,7 @@ const checkAchievements = () => {
   let newAchievements = 0;
   
   AppState.achievements.forEach(achievement => {
-    if (!achievement.earned && achievement.condition()) {
+    if (!achievement.earned && achievement.condition && achievement.condition()) {
       achievement.earned = true;
       achievement.earnedDate = new Date().toISOString();
       newAchievements++;
@@ -255,14 +423,12 @@ const checkAchievements = () => {
         '🏆 Prestasi Baru!'
       );
       
-      // Bonus XP for achievement
       addXp(25);
     }
   });
   
   if (newAchievements > 0) {
     updateAchievementsUI();
-    saveData();
   }
   
   return newAchievements;
@@ -296,7 +462,6 @@ const updateAchievementsUI = () => {
 // CHARTS
 // ========================================
 const initCharts = () => {
-  // Main Chart (Income vs Expense)
   const mainCtx = document.getElementById('mainChart');
   if (mainCtx) {
     AppState.charts.main = new Chart(mainCtx, {
@@ -326,9 +491,7 @@ const initCharts = () => {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-          legend: {
-            labels: { color: '#94a3b8' }
-          }
+          legend: { labels: { color: '#94a3b8' } }
         },
         scales: {
           x: {
@@ -347,7 +510,6 @@ const initCharts = () => {
     });
   }
   
-  // Category Chart (Pie)
   const categoryCtx = document.getElementById('categoryChart');
   if (categoryCtx) {
     AppState.charts.category = new Chart(categoryCtx, {
@@ -356,25 +518,19 @@ const initCharts = () => {
         labels: [],
         datasets: [{
           data: [],
-          backgroundColor: [
-            '#6366f1', '#ec4899', '#10b981', '#f59e0b',
-            '#3b82f6', '#8b5cf6', '#ef4444', '#14b8a6'
-          ],
+          backgroundColor: ['#6366f1', '#ec4899', '#10b981', '#f59e0b', '#3b82f6', '#8b5cf6', '#ef4444', '#14b8a6'],
           borderWidth: 0
         }]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false }
-        },
+        plugins: { legend: { display: false } },
         cutout: '70%'
       }
     });
   }
   
-  // Trend Chart
   const trendCtx = document.getElementById('trendChart');
   if (trendCtx) {
     AppState.charts.trend = new Chart(trendCtx, {
@@ -391,20 +547,12 @@ const initCharts = () => {
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false }
-        },
+        plugins: { legend: { display: false } },
         scales: {
-          x: {
-            grid: { display: false },
-            ticks: { color: '#94a3b8' }
-          },
+          x: { grid: { display: false }, ticks: { color: '#94a3b8' } },
           y: {
             grid: { color: 'rgba(255, 255, 255, 0.05)' },
-            ticks: {
-              color: '#94a3b8',
-              callback: value => 'Rp ' + (value / 1000) + 'K'
-            }
+            ticks: { color: '#94a3b8', callback: value => 'Rp ' + (value / 1000) + 'K' }
           }
         }
       }
@@ -433,7 +581,7 @@ const updateMainChart = (period = 'month') => {
     } else if (period === 'month') {
       key = date.getDate().toString();
     } else {
-      key = date.toLocaleDateString('id-ID', { month: 'short' });
+      key = date.toLocaleDateString('id-ID', { month: 'short', year: '2-digit' });
     }
     
     if (!groupedData[key]) {
@@ -463,7 +611,6 @@ const updateCategoryChart = () => {
   AppState.charts.category.data.datasets[0].data = data;
   AppState.charts.category.update();
   
-  // Update legend
   const colors = ['#6366f1', '#ec4899', '#10b981', '#f59e0b', '#3b82f6', '#8b5cf6', '#ef4444', '#14b8a6'];
   const legend = document.getElementById('categoryLegend');
   if (legend) {
@@ -509,26 +656,22 @@ const updateDashboard = () => {
   const balance = calculateBalance();
   const savingsRate = getSavingsRate();
   
-  // Update stat cards
   document.getElementById('totalIncome').textContent = formatCurrency(income);
   document.getElementById('totalExpense').textContent = formatCurrency(expense);
   document.getElementById('currentBalance').textContent = formatCurrency(balance);
   document.getElementById('savingsRate').textContent = savingsRate.toFixed(0) + '%';
   
-  // Update progress bars
   const maxVal = Math.max(income, expense, 1);
   document.getElementById('incomeProgress').style.width = `${(income / maxVal) * 100}%`;
   document.getElementById('expenseProgress').style.width = `${(expense / maxVal) * 100}%`;
   document.getElementById('balanceProgress').style.width = `${Math.min(Math.abs(balance) / maxVal * 100, 100)}%`;
   document.getElementById('savingsProgress').style.width = `${Math.min(savingsRate, 100)}%`;
   
-  // Update change indicators
   const monthlyIncome = getMonthlyIncome();
   const monthlyExpense = getMonthlyExpense();
   document.getElementById('incomeChange').textContent = `+${formatCurrency(monthlyIncome)} bulan ini`;
   document.getElementById('expenseChange').textContent = `+${formatCurrency(monthlyExpense)} bulan ini`;
   
-  // Update savings change
   const savingsChange = document.getElementById('savingsChange');
   if (savingsRate >= 20) {
     savingsChange.innerHTML = '<i class="fas fa-arrow-up"></i><span>Sangat baik!</span>';
@@ -541,18 +684,13 @@ const updateDashboard = () => {
     savingsChange.className = 'stat-change negative';
   }
   
-  // Update recent transactions
   updateRecentTransactions();
-  
-  // Update charts
   updateCharts();
 };
 
 const updateRecentTransactions = () => {
   const container = document.getElementById('recentTransactions');
-  const recent = [...AppState.transactions]
-    .sort((a, b) => new Date(b.date) - new Date(a.date))
-    .slice(0, 5);
+  const recent = [...AppState.transactions].slice(0, 5);
   
   if (recent.length === 0) {
     container.innerHTML = `
@@ -590,12 +728,10 @@ const updateRecentTransactions = () => {
 const updateTransactionsTable = () => {
   const tbody = document.getElementById('transactionsBody');
   const mobile = document.getElementById('transactionsMobile');
-  const sorted = [...AppState.transactions].sort((a, b) => new Date(b.date) - new Date(a.date));
   
-  document.getElementById('transactionBadge').textContent = sorted.length;
+  document.getElementById('transactionBadge').textContent = AppState.transactions.length;
   
-  // Desktop table
-  tbody.innerHTML = sorted.map(t => `
+  tbody.innerHTML = AppState.transactions.map(t => `
     <tr>
       <td>${formatDate(t.date)}</td>
       <td>${t.description}</td>
@@ -610,8 +746,7 @@ const updateTransactionsTable = () => {
     </tr>
   `).join('');
   
-  // Mobile cards
-  mobile.innerHTML = sorted.map(t => `
+  mobile.innerHTML = AppState.transactions.map(t => `
     <div class="transaction-mobile-card">
       <div class="transaction-icon ${t.type}">
         <i class="fas fa-${t.type === 'income' ? 'arrow-down' : 'arrow-up'}"></i>
@@ -704,7 +839,6 @@ const updateAIAdvice = () => {
   
   let advice = [];
   
-  // Savings rate advice
   if (savingsRate >= 30) {
     advice.push('🌟 Luar biasa! Kamu menghemat ' + savingsRate.toFixed(0) + '% dari pendapatan. Pertahankan kebiasaan baik ini!');
   } else if (savingsRate >= 20) {
@@ -715,7 +849,6 @@ const updateAIAdvice = () => {
     advice.push('⚠️ Tingkat tabunganmu di bawah 10%. Perhatikan pengeluaranmu dan buat anggaran untuk meningkatkan tabungan.');
   }
   
-  // Goal advice
   const activeGoals = AppState.goals.filter(g => g.savedAmount < g.targetAmount);
   if (activeGoals.length > 0) {
     const nearestGoal = activeGoals.sort((a, b) => new Date(a.targetDate) - new Date(b.targetDate))[0];
@@ -726,7 +859,6 @@ const updateAIAdvice = () => {
     advice.push(`🎯 Untuk target "${nearestGoal.name}", sisihkan ${formatCurrency(dailyTarget)} per hari untuk mencapainya tepat waktu.`);
   }
   
-  // Expense advice
   if (monthlyExpense > calculateTotalIncome() * 0.8) {
     advice.push('📊 Pengeluaran bulananmu mendekati 80% dari pendapatan. Pertimbangkan untuk mengurangi pengeluaran atau mencari sumber pendapatan tambahan.');
   }
@@ -735,16 +867,12 @@ const updateAIAdvice = () => {
 };
 
 const updateAnalytics = () => {
-  // Monthly summary
   document.getElementById('monthlyIncome').textContent = formatCurrency(getMonthlyIncome());
   document.getElementById('monthlyExpense').textContent = formatCurrency(getMonthlyExpense());
   document.getElementById('monthlyNet').textContent = formatCurrency(getMonthlyIncome() - getMonthlyExpense());
   
-  // Top categories
   const categoryData = getCategoryData();
-  const sortedCategories = Object.entries(categoryData)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5);
+  const sortedCategories = Object.entries(categoryData).sort((a, b) => b[1] - a[1]).slice(0, 5);
   
   const topCategoriesEl = document.getElementById('topCategories');
   if (sortedCategories.length === 0) {
@@ -763,7 +891,7 @@ const updateAnalytics = () => {
 // ========================================
 // ACTIONS
 // ========================================
-const addTransaction = (e) => {
+const addTransaction = async (e) => {
   e.preventDefault();
   
   const type = document.querySelector('input[name="transactionType"]:checked').value;
@@ -785,43 +913,33 @@ const addTransaction = (e) => {
     description,
     category,
     date,
-    xp,
-    createdAt: new Date().toISOString()
+    xp
   };
   
-  AppState.transactions.push(transaction);
-  saveData();
+  AppState.transactions.unshift(transaction);
+  await saveTransaction(transaction);
   
-  // Add XP
   addXp(xp);
-  
-  // Update UI
   updateDashboard();
-  updateTransactionsTable();
   closeModal('transactionModal');
   
-  // Show notification
   showNotification(`Transaksi berhasil ditambahkan! +${xp} XP`, 'xp');
   
-  // Check achievements
-  checkAchievements();
-  
-  // Reset form
   document.getElementById('transactionForm').reset();
   document.getElementById('transactionDate').value = getToday();
 };
 
-const deleteTransaction = (id) => {
+const deleteTransaction = async (id) => {
   if (confirm('Yakin ingin menghapus transaksi ini?')) {
     AppState.transactions = AppState.transactions.filter(t => t.id !== id);
-    saveData();
+    await deleteTransactionFromDB(id);
     updateDashboard();
     updateTransactionsTable();
     showNotification('Transaksi berhasil dihapus', 'success');
   }
 };
 
-const addGoal = (e) => {
+const addGoal = async (e) => {
   e.preventDefault();
   
   const name = document.getElementById('goalName').value;
@@ -846,31 +964,26 @@ const addGoal = (e) => {
     targetAmount,
     savedAmount,
     targetDate,
-    icon,
-    createdAt: new Date().toISOString()
+    icon
   };
   
   AppState.goals.push(goal);
-  saveData();
+  await saveGoal(goal);
   
-  // Add XP for creating goal
   addXp(10);
-  
   updateGoalsUI();
   closeModal('goalModal');
   showNotification('Target keuangan berhasil dibuat! +10 XP', 'success');
   
   document.getElementById('goalForm').reset();
   document.getElementById('goalDate').value = getToday();
-  
-  checkAchievements();
 };
 
-const addToGoal = (goalId, amount) => {
+const addToGoal = async (goalId, amount) => {
   const goal = AppState.goals.find(g => g.id === goalId);
   if (goal) {
     goal.savedAmount = Math.min(goal.savedAmount + amount, goal.targetAmount);
-    saveData();
+    await saveGoal(goal);
     updateGoalsUI();
     addXp(5);
     showNotification(`Berhasil menambahkan ${formatCurrency(amount)} ke target!`, 'success');
@@ -878,15 +991,14 @@ const addToGoal = (goalId, amount) => {
     if (goal.savedAmount >= goal.targetAmount) {
       showNotification(`🎉 Selamat! Target "${goal.name}" telah tercapai!`, 'success', 'Target Tercapai!');
       addXp(50);
-      checkAchievements();
     }
   }
 };
 
-const deleteGoal = (id) => {
+const deleteGoal = async (id) => {
   if (confirm('Yakin ingin menghapus target ini?')) {
     AppState.goals = AppState.goals.filter(g => g.id !== id);
-    saveData();
+    await deleteGoalFromDB(id);
     updateGoalsUI();
     showNotification('Target berhasil dihapus', 'success');
   }
@@ -909,15 +1021,12 @@ const closeModal = (modalId) => {
 // NAVIGATION
 // ========================================
 const navigateTo = (section) => {
-  // Update sidebar
   document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
   document.querySelector(`[data-section="${section}"]`)?.closest('.nav-item')?.classList.add('active');
   
-  // Update content sections
   document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active'));
   document.getElementById(section + 'Section')?.classList.add('active');
   
-  // Update header
   const titles = {
     dashboard: 'Dashboard',
     transactions: 'Riwayat Transaksi',
@@ -929,65 +1038,192 @@ const navigateTo = (section) => {
   document.getElementById('pageTitle').textContent = titles[section];
   document.getElementById('breadcrumbPage').textContent = titles[section];
   
-  // Update specific sections
   if (section === 'transactions') updateTransactionsTable();
   if (section === 'goals') updateGoalsUI();
   if (section === 'achievements') updateAchievementsUI();
   if (section === 'analytics') updateAnalytics();
   
-  // Close sidebar on mobile
   document.getElementById('sidebar').classList.remove('open');
 };
 
 // ========================================
-// LOGIN HANDLING
+// AUTHENTICATION
 // ========================================
-const handleLogin = (e) => {
+const handleLogin = async (e) => {
   e.preventDefault();
   
-  const username = document.getElementById('username').value;
-  const password = document.getElementById('password').value;
+  const email = document.getElementById('loginEmail').value;
+  const password = document.getElementById('loginPassword').value;
+  const loginBtn = document.getElementById('loginBtn');
   
-  if (username === 'irkham' && password === 'admin123') {
-    // Check streak
-    const today = new Date().toDateString();
-    const lastLogin = AppState.user.lastLogin;
+  loginBtn.disabled = true;
+  loginBtn.innerHTML = '<i class="fas fa-spinner"></i> Masuk...';
+  
+  try {
+    const userCredential = await auth.signInWithEmailAndPassword(email, password);
+    const user = userCredential.user;
     
-    if (lastLogin) {
-      const lastDate = new Date(lastLogin);
-      const diffDays = Math.floor((new Date() - lastDate) / (1000 * 60 * 60 * 24));
-      
-      if (diffDays === 1) {
-        AppState.user.streak++;
-        showNotification(`🔥 Streak ${AppState.user.streak} hari! Pertahankan!`, 'success');
-        addXp(AppState.user.streak * 5);
-      } else if (diffDays > 1) {
-        AppState.user.streak = 1;
-        showNotification('Streak reset. Ayo mulai lagi!', 'info');
-      }
-    } else {
+    document.getElementById('loginSuccess').classList.add('show');
+    document.getElementById('loginError').classList.remove('show');
+    
+    await initializeUser(user);
+  } catch (error) {
+    console.error('Login error:', error);
+    document.getElementById('loginError').classList.add('show');
+    document.getElementById('loginSuccess').classList.remove('show');
+    loginBtn.disabled = false;
+    loginBtn.innerHTML = '<span>Masuk</span><i class="fas fa-arrow-right"></i>';
+  }
+};
+
+const handleRegister = async (e) => {
+  e.preventDefault();
+  
+  const name = document.getElementById('registerName').value;
+  const email = document.getElementById('registerEmail').value;
+  const password = document.getElementById('registerPassword').value;
+  const confirmPassword = document.getElementById('registerConfirmPassword').value;
+  const registerBtn = document.getElementById('registerBtn');
+  const errorEl = document.getElementById('registerError');
+  
+  if (password !== confirmPassword) {
+    errorEl.querySelector('span').textContent = 'Kata sandi tidak cocok';
+    errorEl.classList.add('show');
+    return;
+  }
+  
+  if (password.length < 6) {
+    errorEl.querySelector('span').textContent = 'Kata sandi minimal 6 karakter';
+    errorEl.classList.add('show');
+    return;
+  }
+  
+  registerBtn.disabled = true;
+  registerBtn.innerHTML = '<i class="fas fa-spinner"></i> Mendaftar...';
+  
+  try {
+    const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+    const user = userCredential.user;
+    
+    // Save user profile
+    await db.collection('users').doc(user.uid).set({
+      name: name,
+      email: email,
+      level: 1,
+      xp: 0,
+      maxXp: 100,
+      streak: 1,
+      lastLogin: new Date().toISOString(),
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    
+    showNotification('Akun berhasil dibuat! Selamat datang!', 'success');
+    await initializeUser(user);
+  } catch (error) {
+    console.error('Register error:', error);
+    errorEl.querySelector('span').textContent = getAuthErrorMessage(error.code);
+    errorEl.classList.add('show');
+    registerBtn.disabled = false;
+    registerBtn.innerHTML = '<span>Daftar</span><i class="fas fa-user-plus"></i>';
+  }
+};
+
+const getAuthErrorMessage = (code) => {
+  const messages = {
+    'auth/email-already-in-use': 'Email sudah terdaftar',
+    'auth/invalid-email': 'Email tidak valid',
+    'auth/weak-password': 'Kata sandi terlalu lemah',
+    'auth/user-not-found': 'Email tidak ditemukan',
+    'auth/wrong-password': 'Kata sandi salah',
+    'auth/invalid-credential': 'Email atau kata sandi salah'
+  };
+  return messages[code] || 'Terjadi kesalahan. Coba lagi.';
+};
+
+const initializeUser = async (user) => {
+  document.getElementById('loadingScreen').classList.add('active');
+  
+  AppState.user.uid = user.uid;
+  AppState.user.email = user.email;
+  
+  await loadUserData(user.uid);
+  
+  // Update UI with user data
+  document.getElementById('displayUserName').textContent = AppState.user.name || 'User';
+  document.getElementById('userAvatar').innerHTML = `<span>${(AppState.user.name || 'U').charAt(0).toUpperCase()}</span>`;
+  
+  // Check streak
+  const today = new Date().toDateString();
+  const lastLogin = AppState.user.lastLogin;
+  
+  if (lastLogin) {
+    const lastDate = new Date(lastLogin);
+    const diffDays = Math.floor((new Date() - lastDate) / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 1) {
+      AppState.user.streak++;
+      showNotification(`🔥 Streak ${AppState.user.streak} hari! Pertahankan!`, 'success');
+      addXp(AppState.user.streak * 5);
+    } else if (diffDays > 1) {
       AppState.user.streak = 1;
+      showNotification('Streak reset. Ayo mulai lagi!', 'info');
     }
-    
-    AppState.user.lastLogin = new Date().toISOString();
-    saveData();
-    
-    // Show app
+  } else {
+    AppState.user.streak = 1;
+  }
+  
+  AppState.user.lastLogin = new Date().toISOString();
+  await saveUserData();
+  
+  // Setup real-time listeners
+  setupRealtimeListeners();
+  
+  // Show app
+  setTimeout(() => {
+    document.getElementById('loadingScreen').classList.remove('active');
     document.getElementById('loginContainer').classList.add('hidden');
     document.getElementById('appContainer').classList.add('show');
     
-    // Initialize
     updateXpDisplay();
     updateDashboard();
     initCharts();
-    checkAchievements();
+    updateAchievementsUI();
     
-    showNotification('Selamat datang kembali, ' + AppState.user.name + '!', 'success');
-  } else {
-    document.getElementById('loginError').classList.add('show');
-    setTimeout(() => {
-      document.getElementById('loginError').classList.remove('show');
-    }, 3000);
+    showNotification('Selamat datang kembali, ' + (AppState.user.name || 'User') + '!', 'success');
+  }, 1500);
+};
+
+const handleLogout = async () => {
+  if (confirm('Yakin ingin keluar?')) {
+    try {
+      await auth.signOut();
+      
+      // Reset state
+      AppState.user = {
+        uid: null,
+        name: '',
+        email: '',
+        level: 1,
+        xp: 0,
+        maxXp: 100,
+        streak: 0,
+        lastLogin: null,
+        createdAt: null
+      };
+      AppState.transactions = [];
+      AppState.goals = [];
+      
+      // Reset UI
+      document.getElementById('appContainer').classList.remove('show');
+      document.getElementById('loginContainer').classList.remove('hidden');
+      document.getElementById('loginForm').reset();
+      document.getElementById('loginBtn').disabled = false;
+      document.getElementById('loginBtn').innerHTML = '<span>Masuk</span><i class="fas fa-arrow-right"></i>';
+      
+      showNotification('Berhasil keluar', 'success');
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
   }
 };
 
@@ -995,26 +1231,61 @@ const handleLogin = (e) => {
 // INITIALIZATION
 // ========================================
 document.addEventListener('DOMContentLoaded', () => {
-  // Load saved data
-  loadData();
-  
   // Set default dates
   document.getElementById('transactionDate').value = getToday();
   document.getElementById('goalDate').value = getToday();
   
+  // Auth state listener
+  auth.onAuthStateChanged((user) => {
+    if (user) {
+      // User is signed in
+      console.log('User is signed in:', user.email);
+    } else {
+      // User is signed out
+      console.log('User is signed out');
+    }
+  });
+  
   // Login form
   document.getElementById('loginForm').addEventListener('submit', handleLogin);
   
-  // Toggle password
-  document.getElementById('togglePassword').addEventListener('click', function() {
-    const input = document.getElementById('password');
+  // Register form
+  document.getElementById('registerForm').addEventListener('submit', handleRegister);
+  
+  // Toggle password visibility
+  document.getElementById('toggleLoginPassword').addEventListener('click', function() {
+    const input = document.getElementById('loginPassword');
     const icon = this.querySelector('i');
-    if (input.type === 'password') {
-      input.type = 'text';
-      icon.classList.replace('fa-eye', 'fa-eye-slash');
+    input.type = input.type === 'password' ? 'text' : 'password';
+    icon.classList.toggle('fa-eye');
+    icon.classList.toggle('fa-eye-slash');
+  });
+  
+  document.getElementById('toggleRegisterPassword').addEventListener('click', function() {
+    const input = document.getElementById('registerPassword');
+    const icon = this.querySelector('i');
+    input.type = input.type === 'password' ? 'text' : 'password';
+    icon.classList.toggle('fa-eye');
+    icon.classList.toggle('fa-eye-slash');
+  });
+  
+  // Toggle login/register forms
+  document.getElementById('toggleFormBtn').addEventListener('click', () => {
+    const loginForm = document.getElementById('loginForm');
+    const registerForm = document.getElementById('registerForm');
+    const toggleText = document.getElementById('toggleText');
+    const toggleBtn = document.getElementById('toggleFormBtn');
+    
+    if (loginForm.style.display === 'none') {
+      loginForm.style.display = 'block';
+      registerForm.style.display = 'none';
+      toggleText.textContent = 'Belum punya akun?';
+      toggleBtn.textContent = 'Daftar sekarang';
     } else {
-      input.type = 'password';
-      icon.classList.replace('fa-eye-slash', 'fa-eye');
+      loginForm.style.display = 'none';
+      registerForm.style.display = 'block';
+      toggleText.textContent = 'Sudah punya akun?';
+      toggleBtn.textContent = 'Masuk sekarang';
     }
   });
   
@@ -1033,7 +1304,6 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('closeGoalModal').addEventListener('click', () => closeModal('goalModal'));
   document.getElementById('closeLevelUp').addEventListener('click', () => closeModal('levelUpModal'));
   
-  // Close modal on overlay click
   document.querySelectorAll('.modal-overlay').forEach(overlay => {
     overlay.addEventListener('click', function() {
       this.closest('.modal').classList.remove('active');
@@ -1062,13 +1332,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   
   // Logout
-  document.getElementById('logoutBtn').addEventListener('click', () => {
-    if (confirm('Yakin ingin keluar?')) {
-      document.getElementById('appContainer').classList.remove('show');
-      document.getElementById('loginContainer').classList.remove('hidden');
-      document.getElementById('loginForm').reset();
-    }
-  });
+  document.getElementById('logoutBtn').addEventListener('click', handleLogout);
   
   // Transaction type change
   document.querySelectorAll('input[name="transactionType"]').forEach(radio => {
@@ -1097,16 +1361,13 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Search and filter
   document.getElementById('searchTransaction')?.addEventListener('input', function() {
-    // Implement search functionality
     const search = this.value.toLowerCase();
     const rows = document.querySelectorAll('#transactionsBody tr');
     rows.forEach(row => {
-      const text = row.textContent.toLowerCase();
-      row.style.display = text.includes(search) ? '' : 'none';
+      row.style.display = row.textContent.toLowerCase().includes(search) ? '' : 'none';
     });
   });
   
-  // Filter type and category
   const applyFilters = () => {
     const typeFilter = document.getElementById('filterType')?.value;
     const categoryFilter = document.getElementById('filterCategory')?.value;
@@ -1121,7 +1382,6 @@ document.addEventListener('DOMContentLoaded', () => {
       filtered = filtered.filter(t => t.category === categoryFilter);
     }
     
-    // Update table with filtered data
     const tbody = document.getElementById('transactionsBody');
     tbody.innerHTML = filtered.map(t => `
       <tr>
@@ -1153,6 +1413,19 @@ document.addEventListener('DOMContentLoaded', () => {
       categorySelect.appendChild(option);
     });
   }
+  
+  // Online/offline detection
+  window.addEventListener('online', () => {
+    AppState.isOnline = true;
+    updateSyncStatus('synced');
+    showNotification('Koneksi internet kembali', 'success');
+  });
+  
+  window.addEventListener('offline', () => {
+    AppState.isOnline = false;
+    updateSyncStatus('offline');
+    showNotification('Kamu offline. Data akan disinkron saat online.', 'info');
+  });
 });
 
 // Make functions globally accessible
