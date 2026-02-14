@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>FinanceQuest - Manajer Keuangan Pintar</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Login Screen -->
+  <div class="login-container" id="loginContainer">
+    <div class="login-bg-shapes">
+      <div class="shape shape-1"></div>
+      <div class="shape shape-2"></div>
+      <div class="shape shape-3"></div>
+    </div>
+    <div class="login-card">
+      <div class="login-header">
+        <div class="login-logo">
+          <i class="fas fa-coins"></i>
+        </div>
+        <h1 class="login-title">FinanceQuest</h1>
+        <p class="login-subtitle">Kelola keuanganmu dengan cara yang seru!</p>
+      </div>
+      <form id="loginForm">
+        <div class="form-group">
+          <label for="username">
+            <i class="fas fa-user"></i> Nama Pengguna
+          </label>
+          <input type="text" id="username" placeholder="Masukkan nama pengguna" required>
+        </div>
+        <div class="form-group">
+          <label for="password">
+            <i class="fas fa-lock"></i> Kata Sandi
+          </label>
+          <input type="password" id="password" placeholder="Masukkan kata sandi" required>
+          <button type="button" class="toggle-password" id="togglePassword">
+            <i class="fas fa-eye"></i>
+          </button>
+        </div>
+        <button type="submit" class="login-btn">
+          <span>Masuk</span>
+          <i class="fas fa-arrow-right"></i>
+        </button>
+        <div class="login-error" id="loginError">
+          <i class="fas fa-exclamation-circle"></i>
+          <span>Nama pengguna atau kata sandi salah</span>
+        </div>
+      </form>
+      <div class="login-footer">
+        <div class="demo-credentials">
+          <p><i class="fas fa-info-circle"></i> Demo Login</p>
+          <div class="credentials-box">
+            <span><strong>Username:</strong> irkham</span>
+            <span><strong>Password:</strong> admin123</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Application -->
+  <div class="app-container" id="appContainer">
+    <!-- Sidebar Navigation -->
+    <nav class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="logo">
+          <i class="fas fa-coins"></i>
+          <span>FinanceQuest</span>
+        </div>
+        <button class="sidebar-toggle" id="sidebarToggle">
+          <i class="fas fa-chevron-left"></i>
+        </button>
+      </div>
+      
+      <div class="user-profile">
+        <div class="avatar">
+          <i class="fas fa-user"></i>
+        </div>
+        <div class="user-info">
+          <span class="user-name">Irkham</span>
+          <span class="user-level">Level <span id="sidebarLevel">1</span></span>
+        </div>
+      </div>
+
+      <ul class="nav-menu">
+        <li class="nav-item active">
+          <a href="#dashboard" data-section="dashboard">
+            <i class="fas fa-home"></i>
+            <span>Dashboard</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="#transactions" data-section="transactions">
+            <i class="fas fa-exchange-alt"></i>
+            <span>Transaksi</span>
+            <span class="badge" id="transactionBadge">0</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="#goals" data-section="goals">
+            <i class="fas fa-bullseye"></i>
+            <span>Target</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="#achievements" data-section="achievements">
+            <i class="fas fa-trophy"></i>
+            <span>Prestasi</span>
+            <span class="badge" id="achievementBadge">0</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="#analytics" data-section="analytics">
+            <i class="fas fa-chart-pie"></i>
+            <span>Analisis</span>
+          </a>
+        </li>
+      </ul>
+
+      <div class="sidebar-footer">
+        <button class="logout-btn" id="logoutBtn">
+          <i class="fas fa-sign-out-alt"></i>
+          <span>Keluar</span>
+        </button>
+      </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Header -->
+      <header class="main-header">
+        <div class="header-left">
+          <h1 id="pageTitle">Dashboard</h1>
+          <p class="breadcrumb">FinanceQuest / <span id="breadcrumbPage">Dashboard</span></p>
+        </div>
+        <div class="header-right">
+          <div class="xp-bar">
+            <div class="xp-icon"><i class="fas fa-star"></i></div>
+            <div class="xp-info">
+              <span class="xp-text">Level <span id="headerLevel">1</span></span>
+              <div class="xp-progress">
+                <div class="xp-fill" id="xpFill" style="width: 0%"></div>
+              </div>
+              <span class="xp-value"><span id="currentXP">0</span>/<span id="maxXP">100</span> XP</span>
+            </div>
+          </div>
+          <div class="streak-display">
+            <i class="fas fa-fire"></i>
+            <span id="streakCount">0</span> hari
+          </div>
+          <button class="notification-btn">
+            <i class="fas fa-bell"></i>
+            <span class="notification-dot"></span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Dashboard Section -->
+      <section class="content-section active" id="dashboardSection">
+        <!-- Stats Cards -->
+        <div class="stats-grid">
+          <div class="stat-card income">
+            <div class="stat-bg-icon"><i class="fas fa-arrow-up"></i></div>
+            <div class="stat-content">
+              <div class="stat-header">
+                <span class="stat-label">Total Pendapatan</span>
+                <div class="stat-icon income-icon">
+                  <i class="fas fa-wallet"></i>
+                </div>
+              </div>
+              <div class="stat-value" id="totalIncome">Rp 0</div>
+              <div class="stat-change positive">
+                <i class="fas fa-arrow-up"></i>
+                <span id="incomeChange">+0% bulan ini</span>
+              </div>
+            </div>
+            <div class="stat-progress">
+              <div class="progress-bar">
+                <div class="progress-fill" id="incomeProgress" style="width: 0%"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="stat-card expense">
+            <div class="stat-bg-icon"><i class="fas fa-arrow-down"></i></div>
+            <div class="stat-content">
+              <div class="stat-header">
+                <span class="stat-label">Total Pengeluaran</span>
+                <div class="stat-icon expense-icon">
+                  <i class="fas fa-credit-card"></i>
+                </div>
+              </div>
+              <div class="stat-value" id="totalExpense">Rp 0</div>
+              <div class="stat-change negative">
+                <i class="fas fa-arrow-down"></i>
+                <span id="expenseChange">+0% bulan ini</span>
+              </div>
+            </div>
+            <div class="stat-progress">
+              <div class="progress-bar">
+                <div class="progress-fill" id="expenseProgress" style="width: 0%"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="stat-card balance">
+            <div class="stat-bg-icon"><i class="fas fa-balance-scale"></i></div>
+            <div class="stat-content">
+              <div class="stat-header">
+                <span class="stat-label">Saldo Saat Ini</span>
+                <div class="stat-icon balance-icon">
+                  <i class="fas fa-piggy-bank"></i>
+                </div>
+              </div>
+              <div class="stat-value" id="currentBalance">Rp 0</div>
+              <div class="stat-change neutral">
+                <i class="fas fa-minus"></i>
+                <span>Status keuangan</span>
+              </div>
+            </div>
+            <div class="stat-progress">
+              <div class="progress-bar">
+                <div class="progress-fill" id="balanceProgress" style="width: 0%"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="stat-card savings">
+            <div class="stat-bg-icon"><i class="fas fa-chart-line"></i></div>
+            <div class="stat-content">
+              <div class="stat-header">
+                <span class="stat-label">Tingkat Tabungan</span>
+                <div class="stat-icon savings-icon">
+                  <i class="fas fa-percentage"></i>
+                </div>
+              </div>
+              <div class="stat-value" id="savingsRate">0%</div>
+              <div class="stat-change" id="savingsChange">
+                <i class="fas fa-chart-bar"></i>
+                <span>Dari pendapatan</span>
+              </div>
+            </div>
+            <div class="stat-progress">
+              <div class="progress-bar">
+                <div class="progress-fill" id="savingsProgress" style="width: 0%"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Charts Row -->
+        <div class="charts-row">
+          <div class="chart-card main-chart">
+            <div class="chart-header">
+              <h3><i class="fas fa-chart-area"></i> Analisis Keuangan</h3>
+              <div class="chart-filter">
+                <button class="filter-btn active" data-period="week">Minggu</button>
+                <button class="filter-btn" data-period="month">Bulan</button>
+                <button class="filter-btn" data-period="year">Tahun</button>
+              </div>
+            </div>
+            <div class="chart-container">
+              <canvas id="mainChart"></canvas>
+            </div>
+          </div>
+
+          <div class="chart-card pie-chart">
+            <div class="chart-header">
+              <h3><i class="fas fa-chart-pie"></i> Distribusi Pengeluaran</h3>
+            </div>
+            <div class="chart-container">
+              <canvas id="categoryChart"></canvas>
+            </div>
+            <div class="category-legend" id="categoryLegend"></div>
+            </div>
+        </div>
+
+        <!-- Recent Transactions -->
+        <div class="recent-section">
+          <div class="section-header">
+            <h3><i class="fas fa-history"></i> Transaksi Terbaru</h3>
+            <a href="#transactions" class="view-all" data-section="transactions">Lihat Semua <i class="fas fa-arrow-right"></i></a>
+          </div>
+          <div class="recent-transactions" id="recentTransactions">
+            <div class="empty-state">
+              <div class="empty-icon"><i class="fas fa-receipt"></i></div>
+              <p>Belum ada transaksi</p>
+              <span>Tambahkan transaksi pertamamu!</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Transactions Section -->
+      <section class="content-section" id="transactionsSection">
+        <div class="transactions-header">
+          <div class="filter-group">
+            <div class="search-box">
+              <i class="fas fa-search"></i>
+              <input type="text" id="searchTransaction" placeholder="Cari transaksi...">
+            </div>
+            <select id="filterType">
+              <option value="all">Semua Jenis</option>
+              <option value="income">Pendapatan</option>
+              <option value="expense">Pengeluaran</option>
+            </select>
+            <select id="filterCategory">
+              <option value="all">Semua Kategori</option>
+            </select>
+          </div>
+          <button class="btn-primary" id="addTransactionBtn">
+            <i class="fas fa-plus"></i> Tambah Transaksi
+          </button>
+        </div>
+
+        <div class="transactions-table-container">
+          <table class="transactions-table" id="transactionsTable">
+            <thead>
+              <tr>
+                <th>Tanggal</th>
+                <th>Deskripsi</th>
+                <th>Kategori</th>
+                <th>Jumlah</th>
+                <th>XP</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="transactionsBody"></tbody>
+          </table>
+          <div class="transactions-mobile" id="transactionsMobile"></div>
+        </div>
+
+        <div class="pagination" id="pagination"></div>
+      </section>
+
+      <!-- Goals Section -->
+      <section class="content-section" id="goalsSection">
+        <div class="goals-header">
+          <div class="ai-advisor">
+            <div class="ai-icon"><i class="fas fa-robot"></i></div>
+            <div class="ai-content">
+              <h4>AI Finance Advisor</h4>
+              <p id="aiAdvice">Buat target keuangan pertamamu untuk mendapatkan rekomendasi personal.</p>
+            </div>
+          </div>
+          <button class="btn-primary" id="addGoalBtn">
+            <i class="fas fa-plus"></i> Buat Target
+          </button>
+        </div>
+
+        <div class="goals-grid" id="goalsGrid">
+          <div class="empty-state goals-empty">
+            <div class="empty-icon"><i class="fas fa-bullseye"></i></div>
+            <p>Belum ada target keuangan</p>
+            <span>Buat target untuk memulai perjalanan finansialmu!</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Achievements Section -->
+      <section class="content-section" id="achievementsSection">
+        <div class="achievements-header">
+          <div class="achievements-stats">
+            <div class="achievement-stat">
+              <span class="stat-number" id="earnedAchievements">0</span>
+              <span class="stat-label">Prestasi Didapat</span>
+            </div>
+            <div class="achievement-stat">
+              <span class="stat-number" id="totalAchievements">8</span>
+              <span class="stat-label">Total Prestasi</span>
+            </div>
+            <div class="achievement-stat">
+              <span class="stat-number" id="completionRate">0%</span>
+              <span class="stat-label">Tingkat Penyelesaian</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="achievements-grid" id="achievementsGrid"></div>
+      </section>
+
+      <!-- Analytics Section -->
+      <section class="content-section" id="analyticsSection">
+        <div class="analytics-grid">
+          <div class="analytics-card">
+            <h4><i class="fas fa-calendar-alt"></i> Ringkasan Bulanan</h4>
+            <div class="monthly-summary" id="monthlySummary">
+              <div class="summary-item">
+                <span class="summary-label">Pendapatan</span>
+                <span class="summary-value income" id="monthlyIncome">Rp 0</span>
+              </div>
+              <div class="summary-item">
+                <span class="summary-label">Pengeluaran</span>
+                <span class="summary-value expense" id="monthlyExpense">Rp 0</span>
+              </div>
+              <div class="summary-item">
+                <span class="summary-label">Netto</span>
+                <span class="summary-value" id="monthlyNet">Rp 0</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="analytics-card">
+            <h4><i class="fas fa-list-ol"></i> Kategori Teratas</h4>
+            <div class="top-categories" id="topCategories">
+              <div class="empty-state mini">
+                <p>Belum ada data</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="analytics-card full-width">
+            <h4><i class="fas fa-chart-bar"></i> Tren Keuangan</h4>
+            <div class="chart-wrapper">
+              <canvas id="trendChart"></canvas>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Floating Action Button -->
+  <button class="fab" id="fab">
+    <i class="fas fa-plus"></i>
+  </button>
+
+  <!-- Transaction Modal -->
+  <div class="modal" id="transactionModal">
+    <div class="modal-overlay"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3><i class="fas fa-edit"></i> Tambah Transaksi</h3>
+        <button class="modal-close" id="closeTransactionModal">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <form id="transactionForm">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Jenis Transaksi</label>
+            <div class="transaction-type-selector">
+              <label class="type-option">
+                <input type="radio" name="transactionType" value="income" checked>
+                <span class="type-label income-type">
+                  <i class="fas fa-arrow-down"></i>
+                  Pendapatan
+                </span>
+              </label>
+              <label class="type-option">
+                <input type="radio" name="transactionType" value="expense">
+                <span class="type-label expense-type">
+                  <i class="fas fa-arrow-up"></i>
+                  Pengeluaran
+                </span>
+              </label>
+            </div>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="transactionAmount">Jumlah (Rp)</label>
+            <input type="number" id="transactionAmount" min="1" placeholder="0" required>
+          </div>
+          <div class="form-group">
+            <label for="transactionDate">Tanggal</label>
+            <input type="date" id="transactionDate" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="transactionDescription">Deskripsi</label>
+          <input type="text" id="transactionDescription" placeholder="Contoh: Gaji, Belanja, Makan" required>
+        </div>
+        <div class="form-group" id="categoryGroup">
+          <label for="transactionCategory">Kategori</label>
+          <select id="transactionCategory">
+            <option value="Makanan">🍎 Makanan</option>
+            <option value="Transportasi">🚗 Transportasi</option>
+            <option value="Tempat Tinggal">🏠 Tempat Tinggal</option>
+            <option value="Hiburan">🎬 Hiburan</option>
+            <option value="Kesehatan">🏥 Kesehatan</option>
+            <option value="Pendidikan">📚 Pendidikan</option>
+            <option value="Belanja">🛍️ Belanja</option>
+            <option value="Lainnya">📦 Lainnya</option>
+          </select>
+        </div>
+        <button type="submit" class="btn-primary btn-full">
+          <i class="fas fa-save"></i> Simpan Transaksi
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Goal Modal -->
+  <div class="modal" id="goalModal">
+    <div class="modal-overlay"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3><i class="fas fa-bullseye"></i> Buat Target Keuangan</h3>
+        <button class="modal-close" id="closeGoalModal">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <form id="goalForm">
+        <div class="form-group">
+          <label for="goalName">Nama Target</label>
+          <input type="text" id="goalName" placeholder="Contoh: HP Baru, Tabungan Pendidikan" required>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="goalAmount">Jumlah Target (Rp)</label>
+            <input type="number" id="goalAmount" min="1" placeholder="0" required>
+          </div>
+          <div class="form-group">
+            <label for="goalCurrent">Jumlah Saat Ini (Rp)</label>
+            <input type="number" id="goalCurrent" min="0" placeholder="0" value="0">
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="goalDate">Tanggal Target</label>
+          <input type="date" id="goalDate" required>
+        </div>
+        <div class="form-group">
+          <label for="goalIcon">Ikon</label>
+          <div class="icon-selector" id="iconSelector">
+            <button type="button" class="icon-option active" data-icon="🎯">🎯</button>
+            <button type="button" class="icon-option" data-icon="💰">💰</button>
+            <button type="button" class="icon-option" data-icon="🏠">🏠</button>
+            <button type="button" class="icon-option" data-icon="🚗">🚗</button>
+            <button type="button" class="icon-option" data-icon="✈️">✈️</button>
+            <button type="button" class="icon-option" data-icon="📱">📱</button>
+            <button type="button" class="icon-option" data-icon="💻">💻</button>
+            <button type="button" class="icon-option" data-icon="🎓">🎓</button>
+          </div>
+        </div>
+        <button type="submit" class="btn-primary btn-full">
+          <i class="fas fa-save"></i> Buat Target
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Notification Container -->
+  <div class="notification-container" id="notificationContainer"></div>
+
+  <!-- Level Up Modal -->
+  <div class="modal levelup-modal" id="levelUpModal">
+    <div class="modal-overlay"></div>
+    <div class="modal-content levelup-content">
+      <div class="levelup-animation">
+        <div class="levelup-stars">✨ ⭐ ✨</div>
+        <div class="levelup-icon">
+          <i class="fas fa-trophy"></i>
+        </div>
+        <h2>Level Up!</h2>
+        <p>Selamat! Kamu naik ke Level <span id="newLevel">2</span></p>
+        <div class="levelup-rewards">
+          <div class="reward">
+            <i class="fas fa-gift"></i>
+            <span>+50 XP Bonus</span>
+          </div>
+        </div>
+        <button class="btn-primary" id="closeLevelUp">
+          <i class="fas fa-check"></i> Keren!
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
