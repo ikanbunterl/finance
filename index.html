@@ -9,12 +9,6 @@
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  
-  <!-- Firebase SDK -->
-  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
-  
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -31,16 +25,16 @@
           <i class="fas fa-coins"></i>
         </div>
         <h1 class="login-title">FinanceQuest</h1>
-        <p class="login-subtitle">Kelola keuanganmu dari mana saja!</p>
+        <p class="login-subtitle">Kelola keuanganmu dengan cara yang seru!</p>
       </div>
       
       <!-- Login Form -->
       <form id="loginForm">
         <div class="form-group">
-          <label for="loginEmail">
-            <i class="fas fa-envelope"></i> Email
+          <label for="loginUsername">
+            <i class="fas fa-user"></i> Nama Pengguna
           </label>
-          <input type="email" id="loginEmail" placeholder="email@contoh.com" required>
+          <input type="text" id="loginUsername" placeholder="Masukkan nama pengguna" required>
         </div>
         <div class="form-group">
           <label for="loginPassword">
@@ -57,7 +51,7 @@
         </button>
         <div class="login-error" id="loginError">
           <i class="fas fa-exclamation-circle"></i>
-          <span>Email atau kata sandi salah</span>
+          <span>Nama pengguna atau kata sandi salah</span>
         </div>
         <div class="login-success" id="loginSuccess">
           <i class="fas fa-check-circle"></i>
@@ -74,16 +68,16 @@
           <input type="text" id="registerName" placeholder="Nama kamu" required>
         </div>
         <div class="form-group">
-          <label for="registerEmail">
-            <i class="fas fa-envelope"></i> Email
+          <label for="registerUsername">
+            <i class="fas fa-id-card"></i> Nama Pengguna
           </label>
-          <input type="email" id="registerEmail" placeholder="email@contoh.com" required>
+          <input type="text" id="registerUsername" placeholder="Buat nama pengguna" required>
         </div>
         <div class="form-group">
           <label for="registerPassword">
             <i class="fas fa-lock"></i> Kata Sandi
           </label>
-          <input type="password" id="registerPassword" placeholder="Minimal 6 karakter" minlength="6" required>
+          <input type="password" id="registerPassword" placeholder="Minimal 4 karakter" minlength="4" required>
           <button type="button" class="toggle-password" id="toggleRegisterPassword">
             <i class="fas fa-eye"></i>
           </button>
@@ -110,8 +104,8 @@
           <button type="button" class="link-btn" id="toggleFormBtn">Daftar sekarang</button>
         </p>
         <div class="sync-info">
-          <i class="fas fa-sync"></i>
-          <span>Data tersinkron otomatis di semua perangkat</span>
+          <i class="fas fa-info-circle"></i>
+          <span>Data tersimpan di perangkat ini</span>
         </div>
       </div>
     </div>
@@ -124,7 +118,7 @@
         <i class="fas fa-coins"></i>
       </div>
       <div class="loading-spinner"></div>
-      <p>Menyinkronkan data...</p>
+      <p>Memuat data...</p>
     </div>
   </div>
 
@@ -185,13 +179,15 @@
             <span>Analisis</span>
           </a>
         </li>
+        <li class="nav-item">
+          <a href="#settings" data-section="settings">
+            <i class="fas fa-cog"></i>
+            <span>Pengaturan</span>
+          </a>
+        </li>
       </ul>
 
       <div class="sidebar-footer">
-        <div class="sync-status" id="syncStatus">
-          <i class="fas fa-check-circle"></i>
-          <span>Tersinkron</span>
-        </div>
         <button class="logout-btn" id="logoutBtn">
           <i class="fas fa-sign-out-alt"></i>
           <span>Keluar</span>
@@ -222,10 +218,6 @@
             <i class="fas fa-fire"></i>
             <span id="streakCount">0</span> hari
           </div>
-          <button class="notification-btn" id="notificationBtn">
-            <i class="fas fa-bell"></i>
-            <span class="notification-dot" id="notificationDot"></span>
-          </button>
         </div>
       </header>
 
@@ -487,6 +479,55 @@
             <h4><i class="fas fa-chart-bar"></i> Tren Keuangan</h4>
             <div class="chart-wrapper">
               <canvas id="trendChart"></canvas>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Settings Section -->
+      <section class="content-section" id="settingsSection">
+        <div class="settings-grid">
+          <div class="settings-card">
+            <h4><i class="fas fa-user-cog"></i> Profil Pengguna</h4>
+            <div class="settings-content">
+              <div class="profile-display">
+                <div class="profile-avatar" id="settingsAvatar">U</div>
+                <div class="profile-info">
+                  <span class="profile-name" id="settingsUserName">User</span>
+                  <span class="profile-level">Level <span id="settingsLevel">1</span></span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-card">
+            <h4><i class="fas fa-download"></i> Backup Data</h4>
+            <div class="settings-content">
+              <p class="settings-desc">Simpan semua data keuanganmu ke file JSON. Gunakan ini untuk backup atau pindah ke perangkat lain.</p>
+              <button class="btn-primary" id="exportBtn">
+                <i class="fas fa-file-export"></i> Export Data
+              </button>
+            </div>
+          </div>
+
+          <div class="settings-card">
+            <h4><i class="fas fa-upload"></i> Restore Data</h4>
+            <div class="settings-content">
+              <p class="settings-desc">Pulihkan data dari file backup JSON. Semua data saat ini akan diganti dengan data dari file.</p>
+              <input type="file" id="importFile" accept=".json" style="display: none;">
+              <button class="btn-primary btn-secondary" id="importBtn">
+                <i class="fas fa-file-import"></i> Import Data
+              </button>
+            </div>
+          </div>
+
+          <div class="settings-card warning">
+            <h4><i class="fas fa-exclamation-triangle"></i> Zona Berbahaya</h4>
+            <div class="settings-content">
+              <p class="settings-desc">Hapus semua data dan mulai dari awal. Tindakan ini tidak bisa dibatalkan!</p>
+              <button class="btn-danger" id="resetBtn">
+                <i class="fas fa-trash-alt"></i> Reset Semua Data
+              </button>
             </div>
           </div>
         </div>

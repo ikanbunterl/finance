@@ -1,49 +1,22 @@
 /**
- * FinanceQuest - Multi-Platform Finance Manager
- * Firebase Integration with Real-time Sync
+ * FinanceQuest - Finance Manager
+ * LocalStorage-based with Export/Import for multi-device support
  */
-
-// ========================================
-// FIREBASE CONFIGURATION
-// ========================================
-const firebaseConfig = {
-  apiKey: "AIzaSyBQIrs1W4C0E8dC-T2aLkC8_1e5h3z7k9Q",
-  authDomain: "financequest-app.firebaseapp.com",
-  projectId: "financequest-app",
-  storageBucket: "financequest-app.appspot.com",
-  messagingSenderId: "123456789012",
-  appId: "1:123456789012:web:abcdef1234567890"
-};
-
-// Initialize Firebase
-firebase.initializeApp(firebaseConfig);
-const auth = firebase.auth();
-const db = firebase.firestore();
-
-// Enable offline persistence
-db.enablePersistence({ synchronizeTabs: true })
-  .catch((err) => {
-    if (err.code === 'failed-precondition') {
-      console.log('Persistence failed: Multiple tabs open');
-    } else if (err.code === 'unimplemented') {
-      console.log('Persistence not supported by browser');
-    }
-  });
 
 // ========================================
 // STATE MANAGEMENT
 // ========================================
 const AppState = {
+  currentUser: null,
+  users: {},
   user: {
-    uid: null,
     name: '',
-    email: '',
+    username: '',
     level: 1,
     xp: 0,
     maxXp: 100,
     streak: 0,
-    lastLogin: null,
-    createdAt: null
+    lastLogin: null
   },
   transactions: [],
   goals: [],
@@ -61,9 +34,7 @@ const AppState = {
     main: null,
     category: null,
     trend: null
-  },
-  isOnline: navigator.onLine,
-  isSyncing: false
+  }
 };
 
 // ========================================
@@ -150,6 +121,44 @@ const getCategoryData = () => {
 };
 
 // ========================================
+// LOCAL STORAGE
+// ========================================
+const saveData = () => {
+  if (!AppState.currentUser) return;
+  
+  const data = {
+    user: AppState.user,
+    transactions: AppState.transactions,
+    goals: AppState.goals,
+    achievements: AppState.achievements
+  };
+  
+  localStorage.setItem(`financeQuest_${AppState.currentUser}`, JSON.stringify(data));
+  localStorage.setItem('financeQuest_users', JSON.stringify(AppState.users));
+};
+
+const loadData = () => {
+  // Load users
+  const savedUsers = localStorage.getItem('financeQuest_users');
+  if (savedUsers) {
+    AppState.users = JSON.parse(savedUsers);
+  }
+};
+
+const loadUserData = (username) => {
+  const saved = localStorage.getItem(`financeQuest_${username}`);
+  if (saved) {
+    const data = JSON.parse(saved);
+    AppState.user = data.user || AppState.user;
+    AppState.transactions = data.transactions || [];
+    AppState.goals = data.goals || [];
+    if (data.achievements) {
+      AppState.achievements = data.achievements;
+    }
+  }
+};
+
+// ========================================
 // NOTIFICATION SYSTEM
 // ========================================
 const showNotification = (message, type = 'success', title = null) => {
@@ -196,182 +205,9 @@ const showNotification = (message, type = 'success', title = null) => {
 };
 
 // ========================================
-// SYNC STATUS
-// ========================================
-const updateSyncStatus = (status) => {
-  const syncStatus = document.getElementById('syncStatus');
-  if (!syncStatus) return;
-  
-  if (status === 'syncing') {
-    syncStatus.innerHTML = '<i class="fas fa-sync"></i><span>Menyinkron...</span>';
-    syncStatus.className = 'sync-status syncing';
-  } else if (status === 'synced') {
-    syncStatus.innerHTML = '<i class="fas fa-check-circle"></i><span>Tersinkron</span>';
-    syncStatus.className = 'sync-status';
-  } else if (status === 'error') {
-    syncStatus.innerHTML = '<i class="fas fa-exclamation-circle"></i><span>Gagal sinkron</span>';
-    syncStatus.className = 'sync-status error';
-  } else if (status === 'offline') {
-    syncStatus.innerHTML = '<i class="fas fa-wifi-slash"></i><span>Offline</span>';
-    syncStatus.className = 'sync-status error';
-  }
-};
-
-// ========================================
-// FIREBASE DATA OPERATIONS
-// ========================================
-const saveUserData = async () => {
-  if (!AppState.user.uid) return;
-  
-  updateSyncStatus('syncing');
-  
-  try {
-    const userRef = db.collection('users').doc(AppState.user.uid);
-    await userRef.set({
-      name: AppState.user.name,
-      email: AppState.user.email,
-      level: AppState.user.level,
-      xp: AppState.user.xp,
-      maxXp: AppState.user.maxXp,
-      streak: AppState.user.streak,
-      lastLogin: AppState.user.lastLogin,
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-    }, { merge: true });
-    
-    updateSyncStatus('synced');
-  } catch (error) {
-    console.error('Error saving user data:', error);
-    updateSyncStatus('error');
-  }
-};
-
-const loadUserData = async (uid) => {
-  try {
-    const userDoc = await db.collection('users').doc(uid).get();
-    
-    if (userDoc.exists) {
-      const data = userDoc.data();
-      AppState.user = {
-        ...AppState.user,
-        ...data,
-        uid: uid
-      };
-    }
-  } catch (error) {
-    console.error('Error loading user data:', error);
-  }
-};
-
-const saveTransaction = async (transaction) => {
-  if (!AppState.user.uid) return;
-  
-  try {
-    await db.collection('users').doc(AppState.user.uid)
-      .collection('transactions')
-      .doc(transaction.id)
-      .set({
-        ...transaction,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp()
-      });
-  } catch (error) {
-    console.error('Error saving transaction:', error);
-  }
-};
-
-const deleteTransactionFromDB = async (transactionId) => {
-  if (!AppState.user.uid) return;
-  
-  try {
-    await db.collection('users').doc(AppState.user.uid)
-      .collection('transactions')
-      .doc(transactionId)
-      .delete();
-  } catch (error) {
-    console.error('Error deleting transaction:', error);
-  }
-};
-
-const saveGoal = async (goal) => {
-  if (!AppState.user.uid) return;
-  
-  try {
-    await db.collection('users').doc(AppState.user.uid)
-      .collection('goals')
-      .doc(goal.id)
-      .set({
-        ...goal,
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-      });
-  } catch (error) {
-    console.error('Error saving goal:', error);
-  }
-};
-
-const deleteGoalFromDB = async (goalId) => {
-  if (!AppState.user.uid) return;
-  
-  try {
-    await db.collection('users').doc(AppState.user.uid)
-      .collection('goals')
-      .doc(goalId)
-      .delete();
-  } catch (error) {
-    console.error('Error deleting goal:', error);
-  }
-};
-
-const setupRealtimeListeners = () => {
-  if (!AppState.user.uid) return;
-  
-  // Listen to transactions
-  db.collection('users').doc(AppState.user.uid)
-    .collection('transactions')
-    .orderBy('date', 'desc')
-    .onSnapshot((snapshot) => {
-      AppState.transactions = [];
-      snapshot.forEach((doc) => {
-        AppState.transactions.push({ id: doc.id, ...doc.data() });
-      });
-      updateDashboard();
-      updateTransactionsTable();
-      checkAchievements();
-    }, (error) => {
-      console.error('Error listening to transactions:', error);
-    });
-  
-  // Listen to goals
-  db.collection('users').doc(AppState.user.uid)
-    .collection('goals')
-    .onSnapshot((snapshot) => {
-      AppState.goals = [];
-      snapshot.forEach((doc) => {
-        AppState.goals.push({ id: doc.id, ...doc.data() });
-      });
-      updateGoalsUI();
-    }, (error) => {
-      console.error('Error listening to goals:', error);
-    });
-  
-  // Listen to user data
-  db.collection('users').doc(AppState.user.uid)
-    .onSnapshot((doc) => {
-      if (doc.exists) {
-        const data = doc.data();
-        AppState.user = {
-          ...AppState.user,
-          ...data
-        };
-        updateXpDisplay();
-      }
-    }, (error) => {
-      console.error('Error listening to user data:', error);
-    });
-};
-
-// ========================================
 // XP & LEVEL SYSTEM
 // ========================================
-const addXp = async (amount) => {
+const addXp = (amount) => {
   AppState.user.xp += amount;
   
   while (AppState.user.xp >= AppState.user.maxXp) {
@@ -382,7 +218,7 @@ const addXp = async (amount) => {
   }
   
   updateXpDisplay();
-  await saveUserData();
+  saveData();
 };
 
 const showLevelUpModal = () => {
@@ -393,7 +229,7 @@ const showLevelUpModal = () => {
   setTimeout(() => {
     AppState.user.xp += 50;
     updateXpDisplay();
-    saveUserData();
+    saveData();
   }, 500);
 };
 
@@ -403,6 +239,7 @@ const updateXpDisplay = () => {
   document.getElementById('currentXP').textContent = AppState.user.xp;
   document.getElementById('maxXP').textContent = AppState.user.maxXp;
   document.getElementById('xpFill').style.width = `${(AppState.user.xp / AppState.user.maxXp) * 100}%`;
+  document.getElementById('streakCount').textContent = AppState.user.streak;
 };
 
 // ========================================
@@ -888,10 +725,16 @@ const updateAnalytics = () => {
   }
 };
 
+const updateSettingsUI = () => {
+  document.getElementById('settingsUserName').textContent = AppState.user.name || 'User';
+  document.getElementById('settingsLevel').textContent = AppState.user.level;
+  document.getElementById('settingsAvatar').textContent = (AppState.user.name || 'U').charAt(0).toUpperCase();
+};
+
 // ========================================
 // ACTIONS
 // ========================================
-const addTransaction = async (e) => {
+const addTransaction = (e) => {
   e.preventDefault();
   
   const type = document.querySelector('input[name="transactionType"]:checked').value;
@@ -917,7 +760,7 @@ const addTransaction = async (e) => {
   };
   
   AppState.transactions.unshift(transaction);
-  await saveTransaction(transaction);
+  saveData();
   
   addXp(xp);
   updateDashboard();
@@ -927,19 +770,21 @@ const addTransaction = async (e) => {
   
   document.getElementById('transactionForm').reset();
   document.getElementById('transactionDate').value = getToday();
+  
+  checkAchievements();
 };
 
-const deleteTransaction = async (id) => {
+const deleteTransaction = (id) => {
   if (confirm('Yakin ingin menghapus transaksi ini?')) {
     AppState.transactions = AppState.transactions.filter(t => t.id !== id);
-    await deleteTransactionFromDB(id);
+    saveData();
     updateDashboard();
     updateTransactionsTable();
     showNotification('Transaksi berhasil dihapus', 'success');
   }
 };
 
-const addGoal = async (e) => {
+const addGoal = (e) => {
   e.preventDefault();
   
   const name = document.getElementById('goalName').value;
@@ -968,7 +813,7 @@ const addGoal = async (e) => {
   };
   
   AppState.goals.push(goal);
-  await saveGoal(goal);
+  saveData();
   
   addXp(10);
   updateGoalsUI();
@@ -977,13 +822,15 @@ const addGoal = async (e) => {
   
   document.getElementById('goalForm').reset();
   document.getElementById('goalDate').value = getToday();
+  
+  checkAchievements();
 };
 
-const addToGoal = async (goalId, amount) => {
+const addToGoal = (goalId, amount) => {
   const goal = AppState.goals.find(g => g.id === goalId);
   if (goal) {
     goal.savedAmount = Math.min(goal.savedAmount + amount, goal.targetAmount);
-    await saveGoal(goal);
+    saveData();
     updateGoalsUI();
     addXp(5);
     showNotification(`Berhasil menambahkan ${formatCurrency(amount)} ke target!`, 'success');
@@ -991,17 +838,108 @@ const addToGoal = async (goalId, amount) => {
     if (goal.savedAmount >= goal.targetAmount) {
       showNotification(`🎉 Selamat! Target "${goal.name}" telah tercapai!`, 'success', 'Target Tercapai!');
       addXp(50);
+      checkAchievements();
     }
   }
 };
 
-const deleteGoal = async (id) => {
+const deleteGoal = (id) => {
   if (confirm('Yakin ingin menghapus target ini?')) {
     AppState.goals = AppState.goals.filter(g => g.id !== id);
-    await deleteGoalFromDB(id);
+    saveData();
     updateGoalsUI();
     showNotification('Target berhasil dihapus', 'success');
   }
+};
+
+// ========================================
+// EXPORT/IMPORT
+// ========================================
+const exportData = () => {
+  const data = {
+    user: AppState.user,
+    transactions: AppState.transactions,
+    goals: AppState.goals,
+    achievements: AppState.achievements,
+    exportDate: new Date().toISOString(),
+    version: '1.0'
+  };
+  
+  const dataStr = JSON.stringify(data, null, 2);
+  const blob = new Blob([dataStr], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `financequest_backup_${AppState.user.username}_${new Date().toISOString().split('T')[0]}.json`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+  
+  showNotification('Data berhasil diexport! Simpan file ini dengan aman.', 'success');
+};
+
+const importData = (file) => {
+  const reader = new FileReader();
+  
+  reader.onload = (e) => {
+    try {
+      const data = JSON.parse(e.target.result);
+      
+      if (!data.user || !data.transactions || !data.goals) {
+        showNotification('File tidak valid!', 'error');
+        return;
+      }
+      
+      if (confirm('Ini akan mengganti semua data saat ini. Lanjutkan?')) {
+        AppState.user = { ...data.user, username: AppState.user.username };
+        AppState.transactions = data.transactions || [];
+        AppState.goals = data.goals || [];
+        if (data.achievements) {
+          AppState.achievements = data.achievements;
+        }
+        
+        saveData();
+        updateAllUI();
+        showNotification('Data berhasil dipulihkan!', 'success');
+      }
+    } catch (error) {
+      console.error('Import error:', error);
+      showNotification('Gagal membaca file. Pastikan format JSON benar.', 'error');
+    }
+  };
+  
+  reader.readAsText(file);
+};
+
+const resetAllData = () => {
+  if (confirm('⚠️ PERINGATAN: Ini akan menghapus SEMUA data kamu! Tindakan ini tidak bisa dibatalkan. Lanjutkan?')) {
+    if (confirm('Yakin benar? Semua transaksi, target, dan progress akan hilang.')) {
+      AppState.transactions = [];
+      AppState.goals = [];
+      AppState.user.level = 1;
+      AppState.user.xp = 0;
+      AppState.user.maxXp = 100;
+      AppState.user.streak = 1;
+      AppState.achievements.forEach(a => a.earned = false);
+      
+      saveData();
+      updateAllUI();
+      showNotification('Semua data telah direset.', 'info');
+    }
+  }
+};
+
+const updateAllUI = () => {
+  updateXpDisplay();
+  updateDashboard();
+  updateTransactionsTable();
+  updateGoalsUI();
+  updateAchievementsUI();
+  updateAnalytics();
+  updateSettingsUI();
+  updateCharts();
 };
 
 // ========================================
@@ -1032,7 +970,8 @@ const navigateTo = (section) => {
     transactions: 'Riwayat Transaksi',
     goals: 'Target Keuangan',
     achievements: 'Prestasi',
-    analytics: 'Analisis Keuangan'
+    analytics: 'Analisis Keuangan',
+    settings: 'Pengaturan'
   };
   
   document.getElementById('pageTitle').textContent = titles[section];
@@ -1042,6 +981,7 @@ const navigateTo = (section) => {
   if (section === 'goals') updateGoalsUI();
   if (section === 'achievements') updateAchievementsUI();
   if (section === 'analytics') updateAnalytics();
+  if (section === 'settings') updateSettingsUI();
   
   document.getElementById('sidebar').classList.remove('open');
 };
@@ -1049,38 +989,39 @@ const navigateTo = (section) => {
 // ========================================
 // AUTHENTICATION
 // ========================================
-const handleLogin = async (e) => {
+const handleLogin = (e) => {
   e.preventDefault();
   
-  const email = document.getElementById('loginEmail').value;
+  const username = document.getElementById('loginUsername').value.trim().toLowerCase();
   const password = document.getElementById('loginPassword').value;
   const loginBtn = document.getElementById('loginBtn');
   
   loginBtn.disabled = true;
   loginBtn.innerHTML = '<i class="fas fa-spinner"></i> Masuk...';
   
-  try {
-    const userCredential = await auth.signInWithEmailAndPassword(email, password);
-    const user = userCredential.user;
-    
-    document.getElementById('loginSuccess').classList.add('show');
-    document.getElementById('loginError').classList.remove('show');
-    
-    await initializeUser(user);
-  } catch (error) {
-    console.error('Login error:', error);
-    document.getElementById('loginError').classList.add('show');
-    document.getElementById('loginSuccess').classList.remove('show');
-    loginBtn.disabled = false;
-    loginBtn.innerHTML = '<span>Masuk</span><i class="fas fa-arrow-right"></i>';
-  }
+  setTimeout(() => {
+    if (AppState.users[username] && AppState.users[username].password === password) {
+      AppState.currentUser = username;
+      loadUserData(username);
+      
+      document.getElementById('loginSuccess').classList.add('show');
+      document.getElementById('loginError').classList.remove('show');
+      
+      initializeApp();
+    } else {
+      document.getElementById('loginError').classList.add('show');
+      document.getElementById('loginSuccess').classList.remove('show');
+      loginBtn.disabled = false;
+      loginBtn.innerHTML = '<span>Masuk</span><i class="fas fa-arrow-right"></i>';
+    }
+  }, 500);
 };
 
-const handleRegister = async (e) => {
+const handleRegister = (e) => {
   e.preventDefault();
   
-  const name = document.getElementById('registerName').value;
-  const email = document.getElementById('registerEmail').value;
+  const name = document.getElementById('registerName').value.trim();
+  const username = document.getElementById('registerUsername').value.trim().toLowerCase();
   const password = document.getElementById('registerPassword').value;
   const confirmPassword = document.getElementById('registerConfirmPassword').value;
   const registerBtn = document.getElementById('registerBtn');
@@ -1092,8 +1033,14 @@ const handleRegister = async (e) => {
     return;
   }
   
-  if (password.length < 6) {
-    errorEl.querySelector('span').textContent = 'Kata sandi minimal 6 karakter';
+  if (password.length < 4) {
+    errorEl.querySelector('span').textContent = 'Kata sandi minimal 4 karakter';
+    errorEl.classList.add('show');
+    return;
+  }
+  
+  if (AppState.users[username]) {
+    errorEl.querySelector('span').textContent = 'Nama pengguna sudah terdaftar';
     errorEl.classList.add('show');
     return;
   }
@@ -1101,56 +1048,36 @@ const handleRegister = async (e) => {
   registerBtn.disabled = true;
   registerBtn.innerHTML = '<i class="fas fa-spinner"></i> Mendaftar...';
   
-  try {
-    const userCredential = await auth.createUserWithEmailAndPassword(email, password);
-    const user = userCredential.user;
+  setTimeout(() => {
+    // Create new user
+    AppState.users[username] = {
+      password: password,
+      createdAt: new Date().toISOString()
+    };
     
-    // Save user profile
-    await db.collection('users').doc(user.uid).set({
+    // Initialize user data
+    AppState.currentUser = username;
+    AppState.user = {
       name: name,
-      email: email,
+      username: username,
       level: 1,
       xp: 0,
       maxXp: 100,
       streak: 1,
-      lastLogin: new Date().toISOString(),
-      createdAt: firebase.firestore.FieldValue.serverTimestamp()
-    });
+      lastLogin: new Date().toISOString()
+    };
+    AppState.transactions = [];
+    AppState.goals = [];
+    
+    saveData();
     
     showNotification('Akun berhasil dibuat! Selamat datang!', 'success');
-    await initializeUser(user);
-  } catch (error) {
-    console.error('Register error:', error);
-    errorEl.querySelector('span').textContent = getAuthErrorMessage(error.code);
-    errorEl.classList.add('show');
-    registerBtn.disabled = false;
-    registerBtn.innerHTML = '<span>Daftar</span><i class="fas fa-user-plus"></i>';
-  }
+    initializeApp();
+  }, 500);
 };
 
-const getAuthErrorMessage = (code) => {
-  const messages = {
-    'auth/email-already-in-use': 'Email sudah terdaftar',
-    'auth/invalid-email': 'Email tidak valid',
-    'auth/weak-password': 'Kata sandi terlalu lemah',
-    'auth/user-not-found': 'Email tidak ditemukan',
-    'auth/wrong-password': 'Kata sandi salah',
-    'auth/invalid-credential': 'Email atau kata sandi salah'
-  };
-  return messages[code] || 'Terjadi kesalahan. Coba lagi.';
-};
-
-const initializeUser = async (user) => {
+const initializeApp = () => {
   document.getElementById('loadingScreen').classList.add('active');
-  
-  AppState.user.uid = user.uid;
-  AppState.user.email = user.email;
-  
-  await loadUserData(user.uid);
-  
-  // Update UI with user data
-  document.getElementById('displayUserName').textContent = AppState.user.name || 'User';
-  document.getElementById('userAvatar').innerHTML = `<span>${(AppState.user.name || 'U').charAt(0).toUpperCase()}</span>`;
   
   // Check streak
   const today = new Date().toDateString();
@@ -1173,12 +1100,12 @@ const initializeUser = async (user) => {
   }
   
   AppState.user.lastLogin = new Date().toISOString();
-  await saveUserData();
+  saveData();
   
-  // Setup real-time listeners
-  setupRealtimeListeners();
+  // Update UI
+  document.getElementById('displayUserName').textContent = AppState.user.name || 'User';
+  document.getElementById('userAvatar').innerHTML = `<span>${(AppState.user.name || 'U').charAt(0).toUpperCase()}</span>`;
   
-  // Show app
   setTimeout(() => {
     document.getElementById('loadingScreen').classList.remove('active');
     document.getElementById('loginContainer').classList.add('hidden');
@@ -1190,40 +1117,22 @@ const initializeUser = async (user) => {
     updateAchievementsUI();
     
     showNotification('Selamat datang kembali, ' + (AppState.user.name || 'User') + '!', 'success');
-  }, 1500);
+  }, 1000);
 };
 
-const handleLogout = async () => {
+const handleLogout = () => {
   if (confirm('Yakin ingin keluar?')) {
-    try {
-      await auth.signOut();
-      
-      // Reset state
-      AppState.user = {
-        uid: null,
-        name: '',
-        email: '',
-        level: 1,
-        xp: 0,
-        maxXp: 100,
-        streak: 0,
-        lastLogin: null,
-        createdAt: null
-      };
-      AppState.transactions = [];
-      AppState.goals = [];
-      
-      // Reset UI
-      document.getElementById('appContainer').classList.remove('show');
-      document.getElementById('loginContainer').classList.remove('hidden');
-      document.getElementById('loginForm').reset();
-      document.getElementById('loginBtn').disabled = false;
-      document.getElementById('loginBtn').innerHTML = '<span>Masuk</span><i class="fas fa-arrow-right"></i>';
-      
-      showNotification('Berhasil keluar', 'success');
-    } catch (error) {
-      console.error('Logout error:', error);
-    }
+    AppState.currentUser = null;
+    
+    document.getElementById('appContainer').classList.remove('show');
+    document.getElementById('loginContainer').classList.remove('hidden');
+    document.getElementById('loginForm').reset();
+    document.getElementById('loginBtn').disabled = false;
+    document.getElementById('loginBtn').innerHTML = '<span>Masuk</span><i class="fas fa-arrow-right"></i>';
+    document.getElementById('loginSuccess').classList.remove('show');
+    document.getElementById('loginError').classList.remove('show');
+    
+    showNotification('Berhasil keluar', 'success');
   }
 };
 
@@ -1231,20 +1140,12 @@ const handleLogout = async () => {
 // INITIALIZATION
 // ========================================
 document.addEventListener('DOMContentLoaded', () => {
+  // Load saved data
+  loadData();
+  
   // Set default dates
   document.getElementById('transactionDate').value = getToday();
   document.getElementById('goalDate').value = getToday();
-  
-  // Auth state listener
-  auth.onAuthStateChanged((user) => {
-    if (user) {
-      // User is signed in
-      console.log('User is signed in:', user.email);
-    } else {
-      // User is signed out
-      console.log('User is signed out');
-    }
-  });
   
   // Login form
   document.getElementById('loginForm').addEventListener('submit', handleLogin);
@@ -1414,18 +1315,21 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
   
-  // Online/offline detection
-  window.addEventListener('online', () => {
-    AppState.isOnline = true;
-    updateSyncStatus('synced');
-    showNotification('Koneksi internet kembali', 'success');
+  // Settings - Export/Import/Reset
+  document.getElementById('exportBtn').addEventListener('click', exportData);
+  
+  document.getElementById('importBtn').addEventListener('click', () => {
+    document.getElementById('importFile').click();
   });
   
-  window.addEventListener('offline', () => {
-    AppState.isOnline = false;
-    updateSyncStatus('offline');
-    showNotification('Kamu offline. Data akan disinkron saat online.', 'info');
+  document.getElementById('importFile').addEventListener('change', (e) => {
+    if (e.target.files.length > 0) {
+      importData(e.target.files[0]);
+      e.target.value = '';
+    }
   });
+  
+  document.getElementById('resetBtn').addEventListener('click', resetAllData);
 });
 
 // Make functions globally accessible
